@@ -15,24 +15,13 @@
  */
 package org.orlo.app;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SelectableChannel;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Set of tests of the ONOS application component.
@@ -42,10 +31,82 @@ public class AppComponentTest {
     private AppComponent component;
 
     @Test
-    public void testS() {
-        new Thread(new HostModuleThread()).start();
-        while (true);
+    public void testS() throws InterruptedException {
+      /*  String str = "\n" +
+                "{\n" +
+                "  \"specifier\": [\"45678\",\"443\",\"192.168.1.1\",\"192.168.1.2\",\"TCP\"],\n" +
+                "  \"stats\": [\n" +
+                "    \"min_pkt\",\n" +
+                "    \"max_pkt\",\n" +
+                "    \"mean_pkt\",\n" +
+                "    \"var_pkt\",\n" +
+                "    \"min_idt\",\n" +
+                "    \"max_idt\",\n" +
+                "    \"mean_idt\",\n" +
+                "    \"var_idt\"\n" +
+                "  ]\n" +
+                "}";
+        ConcurrentLinkedQueue<String> flowClq = new ConcurrentLinkedQueue<>();
+        Thread thread = new Thread(new ClassifyModuleThread(str, flowClq));
+        thread.start();
+        thread.join();*/
+        String str = "\n" +
+                "{\n" +
+                "  \"specifier\": [\"45678\",\"443\",\"192.168.1.1\",\"192.168.1.2\",\"TCP\"],\n" +
+                "  \"stats\": [\n" +
+                "    \"min_pkt\",\n" +
+                "    \"max_pkt\",\n" +
+                "    \"mean_pkt\",\n" +
+                "    \"var_pkt\",\n" +
+                "    \"min_idt\",\n" +
+                "    \"max_idt\",\n" +
+                "    \"mean_idt\",\n" +
+                "    \"var_idt\"\n" +
+                "  ]\n" +
+                "}";
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = new ObjectMapper().readTree(str);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        JsonNode specifier = jsonNode.get("specifier");
+        Iterator<JsonNode> iterator = specifier.iterator();
+        ArrayList<String> arrayList = new ArrayList<>();
+        while (iterator.hasNext()) {
+            arrayList.add(iterator.next().toString());
+        }
+        System.out.println(arrayList.size());
+        System.out.println(arrayList);
+
+        /*String routingStr1 = JsonString.routingStr1;
+        try {
+            JsonNode jsonNode = new ObjectMapper().readTree(routingStr1);
+            JsonNode node = jsonNode.get("res");
+            ArrayList<List<String>> arrayLists = new ArrayList<>();
+            if (node.isArray()) {
+                Iterator<JsonNode> iterator = node.iterator();
+                while (iterator.hasNext()) {
+                    JsonNode next = iterator.next();
+                    String str = next.toString();
+                    CharSequence charSequence = str.subSequence(1, str.length()-1);
+                    String[] split = charSequence.toString().split(",");
+                    List<String> list1 = Arrays.asList(split);
+                    arrayLists.add(list1);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }*/
     }
+  /*  @Test
+    public void testA() {
+        String str = "[1,2,5,4,3,0]";
+        CharSequence charSequence = str.subSequence(1, str.length()-1);
+        String[] split = charSequence.toString().split(",");
+        List<String> strings = Arrays.asList(split);
+        System.out.println(strings);
+    }*/
 
  /*   @Before
     public void setUp() {

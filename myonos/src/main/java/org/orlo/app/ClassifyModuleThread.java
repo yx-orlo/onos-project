@@ -1,21 +1,24 @@
 package org.orlo.app;
 
+import com.eclipsesource.json.JsonObject;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.Iterator;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
-public class ClassifyModuleThread implements Runnable{
+/**
+ * 请求分类的线程，将收到的数据发送，并接收分类信息，将信息存储到concurrentLinkedQueue中.
+ */
+public class ClassifyModuleThread implements Runnable {
     private final String jsonString;
-
-    public ClassifyModuleThread(String jsonString) {
+    private ConcurrentLinkedQueue<String> flowClq;
+    public ClassifyModuleThread(String jsonString, ConcurrentLinkedQueue<String> flowClq) {
         this.jsonString = jsonString;
+        this.flowClq = flowClq;
     }
 
     @Override
@@ -23,43 +26,32 @@ public class ClassifyModuleThread implements Runnable{
         try {
             SocketChannel socketChannel = SocketChannel.open();
             socketChannel.connect(new InetSocketAddress("192.168.137.1", 1025));
-            socketChannel.configureBlocking(false);
-            Selector selector = Selector.open();
-            socketChannel.register(selector, SelectionKey.OP_READ);
-            ByteBuffer byteBuffer = ByteBuffer.allocate(2048);
+            ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
             JsonNode jsonNode = new ObjectMapper().readTree(jsonString);
+            JsonNode jsonPart1 = jsonNode.get("specifier");
             JsonNode stats = jsonNode.get("stats");
             String sendString = "{\"stats\":" + stats.toString() + "}";
             byteBuffer.put(sendString.getBytes());
             byteBuffer.flip();
             socketChannel.write(byteBuffer);
             byteBuffer.clear();
-            while (selector.select() > 0) {
-                Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-                while (iterator.hasNext()) {
-                    SelectionKey next = iterator.next();
-                    iterator.remove();
-                    if (next.isReadable()) {
-                        SocketChannel channel = (SocketChannel) next.channel();
-                        ByteBuffer buffer = ByteBuffer.allocate(1024);
-                        int len = 0;
-                        String res = "";
-                        while ((len = channel.read(buffer)) > 0) {
-                            buffer.flip();
-                            res = new String(buffer.array(), 0, len);
-                            buffer.clear();
-                        }
-                        System.out.println(res);
-                        System.out.println(Thread.currentThread() + "----------------下发流表--------------");
-                        Thread.sleep(1000);
-                    }
-                }
-
+            int len = 0;
+            StringBuilder stringBuilder = new StringBuilder();
+            while ((len = socketChannel.read(byteBuffer)) > 0) {
+                byteBuffer.flip();
+                String res = new String(byteBuffer.array(), 0, len);
+                byteBuffer.clear();
+                stringBuilder.append(res);
             }
-            selector.close();
+            String[] split = stringBuilder.toString().split(":");
+            String jsonPart2 = split[1];
+            JsonObject resJson = new JsonObject();
+            resJson.set("specifier", jsonPart1.toString());
+            resJson.set("res", jsonPart2);
+//            System.out.println(resJson.toString());
+            flowClq.offer(resJson.toString());
             socketChannel.close();
-
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }

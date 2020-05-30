@@ -4,7 +4,9 @@ import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-
+/**
+ * 读取json文件，测试中不会使用，可以忽略.
+ */
 public final class ReadFile {
 //"63to18":{"13-14":2,"23-13":2,"33-23":2,"43-33":2,"53-43":2,"63-53":2}
     private ReadFile() {

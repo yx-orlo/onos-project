@@ -6,6 +6,9 @@ import org.onosproject.net.PortNumber;
 
 import java.util.HashMap;
 
+/**
+ * 此文件是66个节点的映射配置文件，测试代码中没有使用，可以忽略.
+ */
 public final class MyUtil {
     private static HashMap<String, DeviceId> swMap = new HashMap<>();
     private static HashMap<String, MacAddress> hostMap = new HashMap<>();
