@@ -15,13 +15,7 @@
  */
 package org.orlo.app;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
 
 /**
  * Set of tests of the ONOS application component.
@@ -32,6 +26,11 @@ public class AppComponentTest {
 
     @Test
     public void testS() throws InterruptedException {
+        /*String str = "\"1234\"";
+        String substring = str.substring(1, str.length() - 1);
+        System.out.println(str);
+        System.out.println(substring);*/
+
       /*  String str = "\n" +
                 "{\n" +
                 "  \"specifier\": [\"45678\",\"443\",\"192.168.1.1\",\"192.168.1.2\",\"TCP\"],\n" +
@@ -50,35 +49,43 @@ public class AppComponentTest {
         Thread thread = new Thread(new ClassifyModuleThread(str, flowClq));
         thread.start();
         thread.join();*/
-        String str = "\n" +
-                "{\n" +
-                "  \"specifier\": [\"45678\",\"443\",\"192.168.1.1\",\"192.168.1.2\",\"TCP\"],\n" +
-                "  \"stats\": [\n" +
-                "    \"min_pkt\",\n" +
-                "    \"max_pkt\",\n" +
-                "    \"mean_pkt\",\n" +
-                "    \"var_pkt\",\n" +
-                "    \"min_idt\",\n" +
-                "    \"max_idt\",\n" +
-                "    \"mean_idt\",\n" +
-                "    \"var_idt\"\n" +
-                "  ]\n" +
-                "}";
-        JsonNode jsonNode = null;
+//        String str = "\n" +
+//                "{\n" +
+//                "  \"specifier\": [\"45678\",\"443\",\"192.168.1.1\",\"192.168.1.2\",\"TCP\"],\n" +
+//                "  \"stats\": [\n" +
+//                "    \"min_pkt\",\n" +
+//                "    \"max_pkt\",\n" +
+//                "    \"mean_pkt\",\n" +
+//                "    \"var_pkt\",\n" +
+//                "    \"min_idt\",\n" +
+//                "    \"max_idt\",\n" +
+//                "    \"mean_idt\",\n" +
+//                "    \"var_idt\"\n" +
+//                "  ]\n" +
+//                "}";
+//        JsonNode jsonNode = null;
+//        try {
+//            jsonNode = new ObjectMapper().readTree(str);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//        JsonNode specifier = jsonNode.get("specifier");
+//        Iterator<JsonNode> iterator = specifier.iterator();
+//        ArrayList<String> arrayList = new ArrayList<>();
+//        while (iterator.hasNext()) {
+//            arrayList.add(iterator.next().toString());
+//        }
+//        System.out.println(arrayList.size());
+//        System.out.println(arrayList);
+      /*  String str = "{\"res\":     1}";
         try {
-            jsonNode = new ObjectMapper().readTree(str);
+            JsonNode jsonNode = new ObjectMapper().readTree(str);
+            JsonNode jsonNode1 = jsonNode.get("res");
+            System.out.println(jsonNode1.toString());
+
         } catch (IOException e) {
             e.printStackTrace();
-        }
-        JsonNode specifier = jsonNode.get("specifier");
-        Iterator<JsonNode> iterator = specifier.iterator();
-        ArrayList<String> arrayList = new ArrayList<>();
-        while (iterator.hasNext()) {
-            arrayList.add(iterator.next().toString());
-        }
-        System.out.println(arrayList.size());
-        System.out.println(arrayList);
-
+        }*/
         /*String routingStr1 = JsonString.routingStr1;
         try {
             JsonNode jsonNode = new ObjectMapper().readTree(routingStr1);

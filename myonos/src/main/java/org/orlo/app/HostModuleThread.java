@@ -30,7 +30,7 @@ public class HostModuleThread implements Runnable {
         ByteBuffer buffer = ByteBuffer.allocate(2048);
          try {
              serverSocketChannel = ServerSocketChannel.open();
-             serverSocketChannel.bind(new InetSocketAddress(1026));
+             serverSocketChannel.bind(new InetSocketAddress("0.0.0.0", 1026));
              serverSocketChannel.configureBlocking(false);
              selector = Selector.open();
              serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);

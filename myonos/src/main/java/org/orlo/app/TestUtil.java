@@ -53,7 +53,7 @@ public final class TestUtil {
         hostIpMap.put("7", IpPrefix.valueOf("10.0.0.8/32"));
         hostIpMap.put("8", IpPrefix.valueOf("10.0.0.9/32"));
 
-        portMap.put("0", PortNumber.portNumber(3));
+ /*       portMap.put("0", PortNumber.portNumber(3));
         portMap.put("1", PortNumber.portNumber(4));
         portMap.put("2", PortNumber.portNumber(3));
         portMap.put("3", PortNumber.portNumber(4));
@@ -61,7 +61,16 @@ public final class TestUtil {
         portMap.put("5", PortNumber.portNumber(4));
         portMap.put("6", PortNumber.portNumber(3));
         portMap.put("7", PortNumber.portNumber(4));
-        portMap.put("8", PortNumber.portNumber(3));
+        portMap.put("8", PortNumber.portNumber(3));*/
+        portMap.put("0", PortNumber.portNumber(1));
+        portMap.put("1", PortNumber.portNumber(1));
+        portMap.put("2", PortNumber.portNumber(1));
+        portMap.put("3", PortNumber.portNumber(1));
+        portMap.put("4", PortNumber.portNumber(1));
+        portMap.put("5", PortNumber.portNumber(1));
+        portMap.put("6", PortNumber.portNumber(1));
+        portMap.put("7", PortNumber.portNumber(1));
+        portMap.put("8", PortNumber.portNumber(1));
 
         ip2swMap.put("10.0.0.1/32", DeviceId.deviceId("of:0000000000000001"));
         ip2swMap.put("10.0.0.2/32", DeviceId.deviceId("of:0000000000000002"));

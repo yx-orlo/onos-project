@@ -1,6 +1,5 @@
 package org.orlo.app;
 
-import com.eclipsesource.json.JsonObject;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -8,6 +7,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -25,7 +26,7 @@ public class ClassifyModuleThread implements Runnable {
     public void run() {
         try {
             SocketChannel socketChannel = SocketChannel.open();
-            socketChannel.connect(new InetSocketAddress("192.168.137.1", 1025));
+            socketChannel.connect(new InetSocketAddress("192.168.65.2", 1025));
             ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
             JsonNode jsonNode = new ObjectMapper().readTree(jsonString);
             JsonNode jsonPart1 = jsonNode.get("specifier");
@@ -43,13 +44,23 @@ public class ClassifyModuleThread implements Runnable {
                 byteBuffer.clear();
                 stringBuilder.append(res);
             }
-            String[] split = stringBuilder.toString().split(":");
-            String jsonPart2 = split[1];
-            JsonObject resJson = new JsonObject();
-            resJson.set("specifier", jsonPart1.toString());
-            resJson.set("res", jsonPart2);
-//            System.out.println(resJson.toString());
-            flowClq.offer(resJson.toString());
+            JsonNode resJson = new ObjectMapper().readTree(stringBuilder.toString());
+            String res = resJson.get("res").toString();
+            Iterator<JsonNode> iterator = jsonPart1.iterator();
+            ArrayList<String> arrayList = new ArrayList<>();
+            while (iterator.hasNext()) {
+                String str = iterator.next().toString();
+                arrayList.add(str.substring(1, str.length() - 1));
+            }
+            arrayList.add(res);
+            if (arrayList.size() == 6) {
+                StringBuilder out = new StringBuilder();
+                for (int i = 0; i < 5; i++) {
+                    out.append(arrayList.get(i)).append("-");
+                }
+                out.append(arrayList.get(5));
+                flowClq.offer(out.toString());
+            }
             socketChannel.close();
         } catch (IOException e) {
             e.printStackTrace();

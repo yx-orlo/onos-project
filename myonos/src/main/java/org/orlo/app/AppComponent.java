@@ -116,7 +116,10 @@ public class AppComponent {
     private HashMap<String, HashMap<String, Long>> matrixMapStore = new HashMap<>();
     private  ConcurrentLinkedQueue<String> routingClq = new ConcurrentLinkedQueue<>();
     private  ConcurrentLinkedQueue<String> flowClq = new ConcurrentLinkedQueue<>();
-
+    private Thread defaultFlowThread;
+    private Thread hostThread;
+    private Thread installRoutingThread;
+    private Thread installFlowThread;
     @Activate
     protected void activate() {
         appId = coreService.registerApplication("org.orlo.app");
@@ -129,16 +132,19 @@ public class AppComponent {
         testinstallHostToSW();
         //安装table1与table2的默认流表项
         testInstallTcpTable();
+        //默认路由线程
+        defaultFlowThread = new Thread(new DefaultFlowThread());
+        defaultFlowThread.start();
         //开启获取host信息的线程,并且配置table0流表信息会添加到线程安全队列中
-        Thread hostThread = new Thread(new HostModuleThread(flowClq));
+        hostThread = new Thread(new HostModuleThread(flowClq));
         hostThread.start();
         //开启定时上传流量矩阵的任务,间隔为15s,不限次数
         timeMission(15, -1);
         //开启下发优化路由的线程
-        Thread installRoutingThread = new Thread(new RoutingFlowThread());
+        installRoutingThread = new Thread(new RoutingFlowThread());
         installRoutingThread.start();
         //开启安装入口交换机table0流表项的线程
-        Thread installFlowThread = new Thread(new InstallFlowByClqThread());
+        installFlowThread = new Thread(new InstallFlowByClqThread());
         installFlowThread.start();
         log.info("----------------Activated end-------------------------");
     }
@@ -147,6 +153,9 @@ public class AppComponent {
     protected void deactivate() {
         executorService.shutdown();
         timer.cancel();
+        hostThread.stop();
+        installRoutingThread.stop();
+        installFlowThread.stop();
         log.info("--------------------System Stopped-------------------------");
     }
 
@@ -181,7 +190,7 @@ public class AppComponent {
         if (stringPortNumberHashMap.containsKey(s)) {
             return stringPortNumberHashMap.get(s);
         } else {
-            log.error("------交换机不相邻-------");
+            log.error("------Switch aren't adjacent-------");
             return PortNumber.portNumber(0);
         }
     }
@@ -382,7 +391,6 @@ public class AppComponent {
         DefaultFlowRule.Builder ruleBuilder = DefaultFlowRule.builder();
         TrafficSelector.Builder selectBuilder = DefaultTrafficSelector.builder();
         selectBuilder.matchEthType(Ethernet.TYPE_IPV4)
-                .matchIPProtocol(IPv4.PROTOCOL_TCP)
                 .matchIPSrc(srcIP)
                 .matchIPDst(dstIP)
                 .matchVlanId(VlanId.vlanId(Short.parseShort(vlanid)));
@@ -394,6 +402,35 @@ public class AppComponent {
                 .forTable(2)
                 .fromApp(appId)
                 .makeTemporary(500)
+                .forDevice(deviceId);
+        FlowRuleOperations.Builder flowRulebuilder = FlowRuleOperations.builder();
+        flowRulebuilder.add(ruleBuilder.build());
+        flowRuleService.apply(flowRulebuilder.build());
+    }
+
+    /**
+     * 通过源目的IP信息，以及Switch间的Port信息安装流表项，安装到table0的默认路由信息.
+     * @param srcIP
+     * @param dstIP
+     * @param port
+     * @param deviceId
+     */
+    public void installDefaultFlow2Table0(IpPrefix srcIP, IpPrefix dstIP,
+                                          PortNumber port, DeviceId deviceId) {
+        DefaultFlowRule.Builder ruleBuilder = DefaultFlowRule.builder();
+        TrafficSelector.Builder selectBuilder = DefaultTrafficSelector.builder();
+        selectBuilder.matchEthType(Ethernet.TYPE_IPV4)
+                .matchIPSrc(srcIP)
+                .matchIPDst(dstIP)
+                .matchVlanId(VlanId.vlanId(Short.parseShort("3")));
+        TrafficTreatment.Builder trafficBuilder = DefaultTrafficTreatment.builder();
+        trafficBuilder.setOutput(port);
+        ruleBuilder.withSelector(selectBuilder.build())
+                .withPriority(50)
+                .withTreatment(trafficBuilder.build())
+                .forTable(0)
+                .fromApp(appId)
+                .makePermanent()
                 .forDevice(deviceId);
         FlowRuleOperations.Builder flowRulebuilder = FlowRuleOperations.builder();
         flowRulebuilder.add(ruleBuilder.build());
@@ -413,13 +450,38 @@ public class AppComponent {
         String dstSW = routingList.get(size);
         IpPrefix srcIp = testHostIpMap.get(srcSW);
         IpPrefix dstIP = testHostIpMap.get(dstSW);
-        for (int i = 0; i < size - 1; i++) {
+        log.info("***************path:" + routingList.toString());
+        for (int i = 0; i < size; i++) {
             src = i;
             dst = src + 1;
             PortNumber port = getPortInfo(testSwMap.get(routingList.get(src)),
                     testSwMap.get(routingList.get(dst)));
             DeviceId deviceId = testSwMap.get(routingList.get(src));
             installFlow2Table2(srcIp, dstIP, port, vlanid, deviceId);
+        }
+
+    }
+
+    /**
+     * 通过List安装流表项,installDefaultFlow2Table0()方法.
+     * @param routingList
+     */
+    public void installDefaultFlow2Table0ByList(List<String> routingList) {
+        int size = routingList.size() - 1;
+        int src = 0;
+        int dst = 0;
+        String srcSW = routingList.get(0);
+        String dstSW = routingList.get(size);
+        IpPrefix srcIp = testHostIpMap.get(srcSW);
+        IpPrefix dstIP = testHostIpMap.get(dstSW);
+        log.info("***************path:" + routingList.toString());
+        for (int i = 0; i < size; i++) {
+            src = i;
+            dst = src + 1;
+            PortNumber port = getPortInfo(testSwMap.get(routingList.get(src)),
+                    testSwMap.get(routingList.get(dst)));
+            DeviceId deviceId = testSwMap.get(routingList.get(src));
+            installDefaultFlow2Table0(srcIp, dstIP, port, deviceId);
         }
 
     }
@@ -461,12 +523,11 @@ public class AppComponent {
     private void tcpToController(DeviceId deviceId) {
         DefaultFlowRule.Builder ruleBuilder = DefaultFlowRule.builder();
         TrafficSelector.Builder selectBuilder = DefaultTrafficSelector.builder();
-        selectBuilder.matchEthType(Ethernet.TYPE_IPV4)
-                .matchIPProtocol(IPv4.PROTOCOL_TCP);
+        selectBuilder.matchEthType(Ethernet.TYPE_IPV4);
         TrafficTreatment.Builder trafficBuilder = DefaultTrafficTreatment.builder();
         trafficBuilder.punt();
         ruleBuilder.withSelector(selectBuilder.build())
-                .withPriority(100)
+                .withPriority(50)
                 .withTreatment(trafficBuilder.build())
                 .forTable(2)
                 .fromApp(appId)
@@ -706,13 +767,30 @@ public class AppComponent {
             log.error("------the number of routing flow entries is wrong----------");
             return;
         }
-        for (int i = 0; i < 143; i++) {
+        for (int i = 0; i < 144; i++) {
             String vlanid = "1";
             if (i >= 72) {
                 vlanid = "2";
             }
             List<String> list = lists.get(i);
             installFlow2Table2ByList(list, vlanid);
+        }
+    }
+
+    /**
+     * 通过ArrayList<List<String>> lists来安装默认的路由信息.
+     * @param lists
+     */
+    public void testInstallDefaultFlowByLists(ArrayList<List<String>> lists) {
+        int size = lists.size();
+        // 判断如果没有144条路由,则报错
+        if (size != 144) {
+            log.error("------the number of routing flow entries is wrong----------");
+            return;
+        }
+        for (int i = 0; i < 144; i++) {
+            List<String> list = lists.get(i);
+            installDefaultFlow2Table0ByList(list);
         }
     }
 
@@ -738,6 +816,54 @@ public class AppComponent {
     }
 
     /**
+     * 通过string下发流表，主要用于优化路由.
+     * @param stringInfo
+     */
+    private void throughStrInstallFlow(String stringInfo) {
+        try {
+            JsonNode jsonNode = new ObjectMapper().readTree(stringInfo);
+            JsonNode node = jsonNode.get("res");
+            ArrayList<List<String>> arrayLists = new ArrayList<>();
+            if (node.isArray()) {
+                for (JsonNode next : node) {
+                    String str = next.toString();
+                    CharSequence charSequence = str.subSequence(1, str.length() - 1);
+                    String[] split = charSequence.toString().split(",");
+                    List<String> list1 = Arrays.asList(split);
+                    arrayLists.add(list1);
+                }
+            }
+            testInstallRoutingByLists(arrayLists);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 通过string下发流表，主要用于默认路由.
+     * @param stringInfo
+     */
+    private void throughStrInstallDefaultFlow(String stringInfo) {
+        try {
+            JsonNode jsonNode = new ObjectMapper().readTree(stringInfo);
+            JsonNode node = jsonNode.get("res");
+            ArrayList<List<String>> arrayLists = new ArrayList<>();
+            if (node.isArray()) {
+                for (JsonNode next : node) {
+                    String str = next.toString();
+                    CharSequence charSequence = str.subSequence(1, str.length() - 1);
+                    String[] split = charSequence.toString().split(",");
+                    List<String> list1 = Arrays.asList(split);
+                    arrayLists.add(list1);
+                }
+            }
+            testInstallDefaultFlowByLists(arrayLists);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * 上传流量矩阵线程，并且获取返回的优化路由信息.
      */
     public class FlowMarixThread implements Runnable {
@@ -749,7 +875,7 @@ public class AppComponent {
         public void run() {
             try {
                 SocketChannel socketChannel = SocketChannel.open();
-                socketChannel.connect(new InetSocketAddress("192.168.137.1", 1027));
+                socketChannel.connect(new InetSocketAddress("192.168.65.2", 1027));
 //            socketChannel.connect(new InetSocketAddress("172.16.181.1", 1027));
                 ByteBuffer byteBuffer = ByteBuffer.allocate(2048);
                 byteBuffer.put(matrixMap.getBytes());
@@ -785,24 +911,8 @@ public class AppComponent {
             while (!routingClq.isEmpty()) {
                 log.info("-----------install routing flow entries---------------");
                 String routingInfo = routingClq.poll();
-                try {
-                    JsonNode jsonNode = new ObjectMapper().readTree(routingInfo);
-                    JsonNode node = jsonNode.get("res");
-                    ArrayList<List<String>> arrayLists = new ArrayList<>();
-                    if (node.isArray()) {
-                        for (JsonNode next : node) {
-                            String str = next.toString();
-                            CharSequence charSequence = str.subSequence(1, str.length() - 1);
-                            String[] split = charSequence.toString().split(",");
-                            List<String> list1 = Arrays.asList(split);
-                            arrayLists.add(list1);
-                        }
-                    }
-                    testInstallRoutingByLists(arrayLists);
-                    log.info("-------------routing has complete------------------");
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+                throughStrInstallFlow(routingInfo);
+                log.info("-------------------optimizing routing flow installed---------------------------");
             }
         }
       }
@@ -818,32 +928,52 @@ public class AppComponent {
             while (!Thread.currentThread().isInterrupted()) {
                 while (!flowClq.isEmpty()) {
                     String poll = flowClq.poll();
-                    try {
-                        JsonNode jsonNode = new ObjectMapper().readTree(poll);
-                        JsonNode specifier = jsonNode.get("specifier");
-                        Iterator<JsonNode> iterator = specifier.iterator();
-                        ArrayList<String> arrayList = new ArrayList<>();
-                        while (iterator.hasNext()) {
-                            arrayList.add(iterator.next().toString());
-                        }
-                        if (arrayList.size() == 5) {
-                            String srcPort = arrayList.get(0);
-                            String dstPort = arrayList.get(1);
-                            String srcIP = arrayList.get(2) + "/32";
-                            String dstIP = arrayList.get(3) + "/32";
-                            String protocol = arrayList.get(4);
-                            String vlanid = jsonNode.get("res").toString();
-                            installBy5Tuple(srcPort, dstPort, srcIP, dstIP, protocol, vlanid, testip2swMap.get(srcIP));
-                        } else {
-                            log.error("----------------five tuple info error------------------------");
-                        }
-
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                    log.info("**************************" + poll);
+                    if (poll != null) {
+                        String[] split = poll.split("-");
+                        String srcPort = split[0];
+                        String dstPort = split[1];
+                        String srcIP = split[2] + "/32";
+                        String dstIP = split[3] + "/32";
+                        String protocol = split[4];
+                        String v = split[5];
+                        String vlanid = String.valueOf(Integer.parseInt(v) + 1);
+                        installBy5Tuple(srcPort, dstPort, srcIP, dstIP, protocol, vlanid, testip2swMap.get(srcIP));
                     }
 
                 }
             }
+        }
+    }
+
+    /**
+     * 默认路由的线程.
+     */
+    public class DefaultFlowThread implements Runnable {
+
+        @Override
+        public void run() {
+            try {
+                SocketChannel socketChannel = SocketChannel.open();
+                socketChannel.connect(new InetSocketAddress("192.168.65.2", 1028));
+                ByteBuffer byteBuffer = ByteBuffer.allocate(2048);
+                //接收数据
+                int len = 0;
+                StringBuilder stringBuilder = new StringBuilder();
+                while ((len = socketChannel.read(byteBuffer)) > 0) {
+                    byteBuffer.flip();
+                    String res = new String(byteBuffer.array(), 0, len);
+                    byteBuffer.clear();
+                    stringBuilder.append(res);
+                }
+                throughStrInstallDefaultFlow(stringBuilder.toString());
+                socketChannel.close();
+                log.info("------Congratuation------Default routing has installed--------------");
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
         }
     }
 }
