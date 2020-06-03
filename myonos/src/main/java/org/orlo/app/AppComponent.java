@@ -132,6 +132,8 @@ public class AppComponent {
         testinstallHostToSW();
         //安装table1与table2的默认流表项
         testInstallTcpTable();
+        //安装IP到table2的流表项
+        testinstallIP2Table2();
         //默认路由线程
         defaultFlowThread = new Thread(new DefaultFlowThread());
         defaultFlowThread.start();
@@ -139,7 +141,7 @@ public class AppComponent {
         hostThread = new Thread(new HostModuleThread(flowClq));
         hostThread.start();
         //开启定时上传流量矩阵的任务,间隔为15s,不限次数
-        timeMission(15, -1);
+        timeMission(60, -1);
         //开启下发优化路由的线程
         installRoutingThread = new Thread(new RoutingFlowThread());
         installRoutingThread.start();
@@ -428,7 +430,34 @@ public class AppComponent {
         ruleBuilder.withSelector(selectBuilder.build())
                 .withPriority(50)
                 .withTreatment(trafficBuilder.build())
-                .forTable(0)
+                .forTable(2)
+                .fromApp(appId)
+                .makePermanent()
+                .forDevice(deviceId);
+        FlowRuleOperations.Builder flowRulebuilder = FlowRuleOperations.builder();
+        flowRulebuilder.add(ruleBuilder.build());
+        flowRuleService.apply(flowRulebuilder.build());
+    }
+
+    /**
+     * 默认路由,用Mac地址作为匹配项.
+     * @param srcMac
+     * @param dstMac
+     * @param port
+     * @param deviceId
+     */
+    public void installDefaultFlowMacTable0(MacAddress srcMac, MacAddress dstMac,
+                                          PortNumber port, DeviceId deviceId) {
+        DefaultFlowRule.Builder ruleBuilder = DefaultFlowRule.builder();
+        TrafficSelector.Builder selectBuilder = DefaultTrafficSelector.builder();
+        selectBuilder.matchEthSrc(srcMac)
+                .matchEthDst(dstMac);
+        TrafficTreatment.Builder trafficBuilder = DefaultTrafficTreatment.builder();
+        trafficBuilder.setOutput(port);
+        ruleBuilder.withSelector(selectBuilder.build())
+                .withPriority(45)
+                .withTreatment(trafficBuilder.build())
+                .forTable(2)
                 .fromApp(appId)
                 .makePermanent()
                 .forDevice(deviceId);
@@ -463,7 +492,7 @@ public class AppComponent {
     }
 
     /**
-     * 通过List安装流表项,installDefaultFlow2Table0()方法.
+     * 通过List安装流表项,installDefaultFlow2Table0()方法,installDefaultFlowMacTable0().
      * @param routingList
      */
     public void installDefaultFlow2Table0ByList(List<String> routingList) {
@@ -474,6 +503,8 @@ public class AppComponent {
         String dstSW = routingList.get(size);
         IpPrefix srcIp = testHostIpMap.get(srcSW);
         IpPrefix dstIP = testHostIpMap.get(dstSW);
+        MacAddress srcMac = testHostMacMap.get(srcSW);
+        MacAddress dstMac = testHostMacMap.get(dstSW);
         log.info("***************path:" + routingList.toString());
         for (int i = 0; i < size; i++) {
             src = i;
@@ -482,6 +513,7 @@ public class AppComponent {
                     testSwMap.get(routingList.get(dst)));
             DeviceId deviceId = testSwMap.get(routingList.get(src));
             installDefaultFlow2Table0(srcIp, dstIP, port, deviceId);
+            installDefaultFlowMacTable0(srcMac, dstMac, port, deviceId);
         }
 
     }
@@ -527,7 +559,7 @@ public class AppComponent {
         TrafficTreatment.Builder trafficBuilder = DefaultTrafficTreatment.builder();
         trafficBuilder.punt();
         ruleBuilder.withSelector(selectBuilder.build())
-                .withPriority(50)
+                .withPriority(5)
                 .withTreatment(trafficBuilder.build())
                 .forTable(2)
                 .fromApp(appId)
@@ -715,6 +747,29 @@ public class AppComponent {
         log.info("----------testHostToSW complete----------------");
     }
 
+    /**
+     *安装IP到table2的流表项.
+     */
+    private void testinstallIP2Table2() {
+        for (String s : testHostMacMap.keySet()) {
+            DeviceId deviceId = testSwMap.get(s);
+            TrafficSelector.Builder selectBuilder = DefaultTrafficSelector.builder();
+            TrafficTreatment.Builder trafficBuilder = DefaultTrafficTreatment.builder();
+            selectBuilder.matchEthType(Ethernet.TYPE_IPV4);
+            trafficBuilder.transition(2);
+            DefaultForwardingObjective.Builder objBuilder = DefaultForwardingObjective.builder();
+            objBuilder.withSelector(selectBuilder.build())
+                    .withTreatment(trafficBuilder.build())
+                    .withPriority(50000)
+                    .withFlag(ForwardingObjective.Flag.VERSATILE)
+                    .fromApp(appId)
+                    .makePermanent();
+            flowObjectiveService.apply(deviceId, objBuilder.add());
+
+        }
+        log.info("---------- IP 2 table2 completed----------------");
+    }
+
 /*    *//*
       通过源地址，来将数据包打上不同的vlandId.
       @param srcIp
@@ -788,7 +843,7 @@ public class AppComponent {
             log.error("------the number of routing flow entries is wrong----------");
             return;
         }
-        for (int i = 0; i < 144; i++) {
+        for (int i = 0; i < 72; i++) {
             List<String> list = lists.get(i);
             installDefaultFlow2Table0ByList(list);
         }
@@ -875,7 +930,7 @@ public class AppComponent {
         public void run() {
             try {
                 SocketChannel socketChannel = SocketChannel.open();
-                socketChannel.connect(new InetSocketAddress("192.168.65.2", 1027));
+                socketChannel.connect(new InetSocketAddress("172.17.0.1", 1027));
 //            socketChannel.connect(new InetSocketAddress("172.16.181.1", 1027));
                 ByteBuffer byteBuffer = ByteBuffer.allocate(2048);
                 byteBuffer.put(matrixMap.getBytes());
@@ -955,7 +1010,7 @@ public class AppComponent {
         public void run() {
             try {
                 SocketChannel socketChannel = SocketChannel.open();
-                socketChannel.connect(new InetSocketAddress("192.168.65.2", 1028));
+                socketChannel.connect(new InetSocketAddress("172.17.0.1", 1028));
                 ByteBuffer byteBuffer = ByteBuffer.allocate(2048);
                 //接收数据
                 int len = 0;

@@ -26,7 +26,7 @@ public class ClassifyModuleThread implements Runnable {
     public void run() {
         try {
             SocketChannel socketChannel = SocketChannel.open();
-            socketChannel.connect(new InetSocketAddress("192.168.65.2", 1025));
+            socketChannel.connect(new InetSocketAddress("172.17.0.1", 1025));
             ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
             JsonNode jsonNode = new ObjectMapper().readTree(jsonString);
             JsonNode jsonPart1 = jsonNode.get("specifier");
